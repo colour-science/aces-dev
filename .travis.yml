@@ -1,0 +1,63 @@
+sudo: true
+language: python
+
+matrix:
+  fast_finish: true
+  include:
+  - python: 2.7
+    env:
+    - PYTHON_VERSION="2.7"
+
+notifications:
+  slack: colour-science:Y6lPPcN7y53Js94geqUpqsAP
+
+addons:
+  apt:
+   sources:
+      - ubuntu-toolchain-r-test
+   packages:
+      - libboost-all-dev
+      - libopenexr-dev
+      - libilmbase-dev
+      - libimage-exiftool-perl
+
+before_install:
+  - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
+  - chmod +x miniconda.sh
+  - ./miniconda.sh -b -p /home/travis/miniconda
+  - export PATH=/home/travis/miniconda/bin:$PATH
+  - conda update --yes --quiet conda
+  - "export DISPLAY=:99.0"
+  - "sh -e /etc/init.d/xvfb start"
+  - PACKAGES="python=${PYTHON_VERSION}"
+  - PACKAGES="${PACKAGES} numpy"; if [ ${NUMPY_VERSION} ]; then PACKAGES="${PACKAGES}=${NUMPY_VERSION}"; fi
+  - cd /tmp
+  - wget https://github.com/OpenImageIO/oiio/archive/Release-1.5.21.tar.gz -O /tmp/OpenImageIO-1.5.21.tar.gz
+  - tar -xvf /tmp/OpenImageIO-1.5.21.tar.gz
+  - cd /tmp/oiio-Release-1.5.21
+  - make
+  - cd /tmp
+  - wget https://github.com/ampas/CTL/archive/ctl-1.5.2.tar.gz -O /tmp/ctl-1.5.2.tar.gz
+  - tar -xvf /tmp/ctl-1.5.2.tar.gz
+  - cd /tmp/CTL-ctl-1.5.2
+  - mkdir build && cd build
+  - cmake ..
+  - make
+
+install:
+  - conda create --yes --quiet -n aces-dev-test ${PACKAGES} pip setuptools nose
+  - source activate aces-dev-test
+  - pip install coverage coveralls flake8
+  - sudo cp /tmp/oiio-Release-1.5.21/dist/linux64/bin/* /usr/local/bin/
+  - sudo cp /tmp/oiio-Release-1.5.21/dist/linux64/lib/* /usr/local/lib/
+  - cp /tmp/oiio-Release-1.5.21/dist/linux64/python/OpenImageIO.so /home/travis/miniconda/envs/aces-dev-test/lib/python2.7/site-packages/
+  - cd /tmp/CTL-ctl-1.5.2/build
+  - sudo make install
+  - cd $TRAVIS_BUILD_DIR
+
+script:
+  - flake8 tests
+  - nosetests --nocapture --with-doctest --doctest-options=+ELLIPSIS,+NORMALIZE_WHITESPACE --with-coverage --cover-package=tests -exclude-dir=
+
+after_success:
+  - coveralls
