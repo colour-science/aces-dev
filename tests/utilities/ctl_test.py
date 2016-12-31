@@ -169,7 +169,8 @@ class AbstractCTL_TestCase(unittest.TestCase):
             space='linear',
             start=(0, 0, 0),
             end=(1, 1, 1),
-            samples=1024):
+            samples=1024,
+            suffix=None):
         """
         Returns the path of the current unit tests generated ramp image.
 
@@ -184,6 +185,8 @@ class AbstractCTL_TestCase(unittest.TestCase):
             *RGB* channels end value.
         samples : int, optional
             Ramp samples count.
+        suffix : unicode, optional
+            Path suffix.
 
         Returns
         -------
@@ -192,17 +195,18 @@ class AbstractCTL_TestCase(unittest.TestCase):
         """
 
         space = space.lower()
-        path = str(
-            os.path.join(
-                self.temporary_directory,
-                '{0}_{1}_ramp.exr'.format(
-                    self.__class__.__name__, space)))
+        path = str(os.path.join(
+            self.temporary_directory,
+            '{0}_{1}_ramp{2}.exr'.format(
+                self.__class__.__name__,
+                space,
+                '_{0}'.format(suffix) if suffix is not None else '')))
 
         self.write_ramp_image(path, space, start, end, samples)
 
         return path
 
-    def reference_ramp_image_path(self, space):
+    def reference_ramp_image_path(self, space='linear', suffix=None):
         """
         Returns the path of the reference ramp image.
 
@@ -213,6 +217,8 @@ class AbstractCTL_TestCase(unittest.TestCase):
         space : unicode, optional
             **{'Linear', 'Log2', 'Log10'}**,
             Ramp space.
+        suffix : unicode, optional
+            Path suffix.
 
         Returns
         -------
@@ -221,16 +227,17 @@ class AbstractCTL_TestCase(unittest.TestCase):
         """
 
         space = space.lower()
-        path = str(
-            os.path.join(
-                os.path.dirname(inspect.getfile(self.__class__)),
-                'resources',
-                '{0}_reference_{1}_ramp.exr'.format(
-                    self.__class__.__name__, space)))
+        path = str(os.path.join(
+            os.path.dirname(inspect.getfile(self.__class__)),
+            'resources',
+            '{0}_reference_{1}_ramp{2}.exr'.format(
+                self.__class__.__name__,
+                space,
+                '_{0}'.format(suffix) if suffix is not None else '')))
 
         return path
 
-    def assessment_ramp_image_path(self, space):
+    def assessment_ramp_image_path(self, space='linear', suffix=None):
         """
         Returns the path of the generated assessment / test ramp image.
 
@@ -241,6 +248,8 @@ class AbstractCTL_TestCase(unittest.TestCase):
         space : unicode, optional
             **{'Linear', 'Log2', 'Log10'}**,
             Ramp space.
+        suffix : unicode, optional
+            Path suffix.
 
         Returns
         -------
@@ -249,11 +258,12 @@ class AbstractCTL_TestCase(unittest.TestCase):
         """
 
         space = space.lower()
-        path = str(
-            os.path.join(
-                self.temporary_directory,
-                '{0}_test_{1}_ramp.exr'.format(
-                    self.__class__.__name__, space)))
+        path = str(os.path.join(
+            self.temporary_directory,
+            '{0}_test_{1}_ramp{2}.exr'.format(
+                self.__class__.__name__,
+                space,
+                '_{0}'.format(suffix) if suffix is not None else '')))
 
         return path
 
@@ -345,12 +355,14 @@ class CTL_File_TestCase(AbstractCTL_TestCase):
             **filter_kwargs(
                 self.ramp_image_path, **kwargs))
         reference_image_path = self.reference_ramp_image_path(
-            kwargs.get('space', 'Linear'))
+            space=kwargs.get('space', 'Linear'),
+            suffix=kwargs.get('suffix'))
         test_image_path = (
             reference_image_path
             if self.GENERATE_REFERENCE_IMAGE_DATA else
             self.assessment_ramp_image_path(
-                kwargs.get('space', 'Linear')))
+                space=kwargs.get('space', 'Linear'),
+                suffix=kwargs.get('suffix')))
 
         ctl_render(
             input_image_path,
@@ -638,12 +650,14 @@ class CTL_Function_TestCase(AbstractCTL_TestCase):
             **filter_kwargs(
                 self.ramp_image_path, **kwargs))
         reference_image_path = self.reference_ramp_image_path(
-            kwargs.get('space', 'Linear'))
+            space=kwargs.get('space', 'Linear'),
+            suffix=kwargs.get('suffix'))
         test_image_path = (
             reference_image_path
             if self.GENERATE_REFERENCE_IMAGE_DATA else
             self.assessment_ramp_image_path(
-                kwargs.get('space', 'Linear')))
+                space=kwargs.get('space', 'Linear'),
+                suffix=kwargs.get('suffix')))
 
         ctl_render(
             input_image_path,
