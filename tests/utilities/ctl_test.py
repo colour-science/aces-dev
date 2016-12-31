@@ -50,15 +50,19 @@ class AbstractCTL_TestCase(unittest.TestCase):
     GENERATE_REFERENCE_IMAGE_DATA
     RELATIVE_TOLERANCE
     temporary_directory
+    default_triplet_samples
+    default_quadruplet_samples
 
     Methods
     -------
     setUp
     tearDown
+    triplet_samples
     write_ramp_image
     ramp_image_path
     reference_ramp_image_path
     assessment_ramp_image_path
+    assert_array_and_image_all_close
     assert_images_all_close
     """
 
@@ -77,12 +81,12 @@ class AbstractCTL_TestCase(unittest.TestCase):
     directory next to the current unit tests module.
     """
 
-    RELATIVE_TOLERANCE = 0.0000001
+    RELATIVE_TOLERANCE = 1e-7
     """
     Relative tolerance for image comparison.
     """
 
-    ABSOLUTE_TOLERANCE = 0.0000001
+    ABSOLUTE_TOLERANCE = 1e-7
     """
     Absolute tolerance for image comparison.
     """
@@ -99,6 +103,11 @@ class AbstractCTL_TestCase(unittest.TestCase):
 
         self.temporary_directory = tempfile.mkdtemp()
 
+        self.default_triplet_samples = self.triplet_samples()
+        self.default_quadruplet_samples = np.hstack(
+            [self.default_triplet_samples,
+             np.ones(self.default_triplet_samples.shape[0])[..., np.newaxis]])
+
     def tearDown(self):
         """
         After tests actions.
@@ -107,15 +116,68 @@ class AbstractCTL_TestCase(unittest.TestCase):
         shutil.rmtree(self.temporary_directory)
 
     @staticmethod
-    def write_ramp_image(
-            path,
+    def triplet_samples(
             space='Linear',
-            start=(0, 0, 0),
-            end=(1, 1, 1),
+            start=(0, -1, 2 ** -14),
+            end=(1, 1, 65504),
             samples=1024):
         """
-        Generates a *linear*, *log2* or *log10* ramp image using given range
+        Generates *linear*, *log2* or *log10* triplet samples using given range
         and samples count.
+
+        Parameters
+        ----------
+        space : unicode, optional
+            **{'Linear', 'Log2', 'Log10'}**,
+            Samples space.
+        start : array_like, optional
+            Samples start value.
+        end : array_like, optional
+            Samples channels end value.
+        samples : int, optional
+            Samples count.
+
+        Returns
+        -------
+        ndarray
+            Triplet samples.
+        """
+
+        space = space.lower()
+
+        if space == 'log2':
+            a = tstack(
+                [np.logspace(np.log2(start[i]),
+                             np.log2(end[i]),
+                             samples,
+                             base=2)
+                 for i in range(3)])
+        elif space == 'log10':
+            a = tstack(
+                [np.logspace(np.log10(start[i]),
+                             np.log10(end[i]),
+                             samples)
+                 for i in range(3)])
+        else:
+            a = tstack(
+                [np.linspace(
+                    start[i],
+                    end[i],
+                    samples)
+                 for i in range(3)])
+
+        return a
+
+    def write_ramp_image(
+            self,
+            path,
+            space='Linear',
+            start=(0, -1, 2 ** -14),
+            end=(1, 1, 65504),
+            samples=1024):
+        """
+        Writes a *linear*, *log2* or *log10* ramp image using given range
+        and samples count to given path.
 
         Parameters
         ----------
@@ -137,38 +199,17 @@ class AbstractCTL_TestCase(unittest.TestCase):
             Method success.
         """
 
-        space = space.lower()
-
-        if space == 'log2':
-            a = tstack(
-                [np.logspace(np.log2(start[i]),
-                             np.log2(end[i]),
-                             samples,
-                             base=2)[np.newaxis, ...]
-                 for i in range(3)])
-        elif space == 'log10':
-            a = tstack(
-                [np.logspace(np.log10(start[i]),
-                             np.log10(end[i]),
-                             samples)[np.newaxis, ...]
-                 for i in range(3)])
-        else:
-            a = tstack(
-                [np.linspace(
-                    start[i],
-                    end[i],
-                    samples)[np.newaxis, ...]
-                 for i in range(3)])
-
-        write_image(a, path)
+        write_image(
+            self.triplet_samples(space, start, end, samples)[np.newaxis, ...],
+            path)
 
         return True
 
     def ramp_image_path(
             self,
             space='linear',
-            start=(0, 0, 0),
-            end=(1, 1, 1),
+            start=(0, -1, 2 ** -14),
+            end=(1, 1, 65504),
             samples=1024,
             suffix=None):
         """
@@ -267,7 +308,47 @@ class AbstractCTL_TestCase(unittest.TestCase):
 
         return path
 
-    def assert_images_all_close(self, image_path_1, image_path_2):
+    def assert_array_and_image_all_close(
+            self,
+            a,
+            image_path,
+            relative_tolerance=None,
+            absolute_tolerance=None):
+        """
+        Asserts that given array and image are close in given tolerances.
+
+        Parameters
+        ----------
+        a : array_like
+            Array to compare to image.
+        image_path
+            Path to image.
+        relative_tolerance : numeric, optional
+            Relative tolerance.
+        absolute_tolerance : numeric, optional
+            Absolute tolerance.
+        """
+
+        a = np.asarray(a)
+
+        assert os.path.exists(image_path), (
+            '"{0}" image file doesn\'t exists!'.format(image_path))
+        np.testing.assert_allclose(
+            a,
+            read_image(image_path),
+            rtol=(relative_tolerance
+                  if relative_tolerance is not None else
+                  self.RELATIVE_TOLERANCE),
+            atol=(absolute_tolerance
+                  if absolute_tolerance is not None else
+                  self.ABSOLUTE_TOLERANCE))
+
+    def assert_images_all_close(
+            self,
+            image_path_1,
+            image_path_2,
+            relative_tolerance=None,
+            absolute_tolerance=None):
         """
         Asserts that both given image are close in given tolerances.
 
@@ -277,6 +358,10 @@ class AbstractCTL_TestCase(unittest.TestCase):
             Path to first image.
         image_path_2
             Path to second image.
+        relative_tolerance : numeric, optional
+            Relative tolerance.
+        absolute_tolerance : numeric, optional
+            Absolute tolerance.
         """
 
         assert os.path.exists(image_path_1), (
@@ -288,8 +373,12 @@ class AbstractCTL_TestCase(unittest.TestCase):
         np.testing.assert_allclose(
             read_image(image_path_1),
             read_image(image_path_2),
-            rtol=self.RELATIVE_TOLERANCE,
-            atol=self.ABSOLUTE_TOLERANCE)
+            rtol=(relative_tolerance
+                  if relative_tolerance is not None else
+                  self.RELATIVE_TOLERANCE),
+            atol=(absolute_tolerance
+                  if absolute_tolerance is not None else
+                  self.ABSOLUTE_TOLERANCE))
 
 
 class CTL_File_TestCase(AbstractCTL_TestCase):
